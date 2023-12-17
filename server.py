@@ -12,6 +12,8 @@ parser = argparse.ArgumentParser(description='MediaPipe Voter Server')
 parser.add_argument('port', help='Port to run server on', type=int)
 parser.add_argument('-n', '--n_clusters', help='Number of clusters (if fixed)', type=int)
 
+ANNOTATIONS = []
+
 
 def determine_n_clusters(dataset: np.ndarray) -> int:
     clusters_prediction_inertia = []
@@ -44,6 +46,44 @@ def determine_n_clusters(dataset: np.ndarray) -> int:
     return np.argmax(regression_score > linearity_criteria) + 1
 
 
+def cluster_dataset(dataset: np.ndarray) -> (np.ndarray, np.ndarray):
+    if args.n_clusters is None:
+        n = determine_n_clusters(dataset)
+    else:
+        n = args.n_clusters
+
+    logging.info(f'Found {n} clusters')
+
+    kmeans = KMeans(n_clusters=n, n_init='auto')
+    kmeans.fit(dataset)
+    y_kmeans = kmeans.predict(dataset)
+    cluster_centers = kmeans.cluster_centers_
+
+    logging.debug(f'{y_kmeans = }')
+
+    return y_kmeans, cluster_centers
+
+
+def process_impact(point_distribution: np.ndarray, cluster_centers: np.ndarray) -> list[int]:
+    impact = []
+
+    for i, point in enumerate(cluster_centers):
+        ratio = np.sum(point_distribution == i) / len(point_distribution)
+        impact.append(round(ratio * 100))
+
+    return impact
+
+
+def annotate(point_set: np.ndarray, point_impact: list[int]):
+    for annotation in ANNOTATIONS:
+        annotation.remove()
+    ANNOTATIONS[:] = []
+
+    for i, (point, impact) in enumerate(zip(point_set, point_impact)):
+        annotation = plt.annotate(f'   {impact}%', point)
+        ANNOTATIONS.append(annotation)
+
+
 if __name__ == '__main__':
     args = parser.parse_args()
 
@@ -68,29 +108,13 @@ if __name__ == '__main__':
 
     X = np.array(list(zip(x_data, y_data)))
 
-    if args.n_clusters is None:
-        N = determine_n_clusters(X)
-    else:
-        N = args.n_clusters
-
-    logging.info(f'Found {N} clusters')
-
-    kmeans = KMeans(n_clusters=N, n_init='auto')
-    kmeans.fit(X)
-    y_kmeans = kmeans.predict(X)
-
-    logging.debug(f'{y_kmeans = }')
+    distribution, centers = cluster_dataset(X)
 
     plt.figure(num='Clustered votes')
-    plt.scatter(X[:, 0], X[:, 1], c=y_kmeans, s=50, cmap='viridis')
-
-    centers = kmeans.cluster_centers_
+    plt.scatter(X[:, 0], X[:, 1], c=distribution, s=50, cmap='viridis')
     plt.scatter(centers[:, 0], centers[:, 1], c='black', s=200)
 
-    for i, point in enumerate(centers):
-        ratio = np.sum(y_kmeans == i) / len(y_kmeans)
-        plt.annotate(f'   {round(ratio * 100)}%', point)
+    annotate(centers, process_impact(distribution, centers))
 
     plt.axis('off')
-
     plt.show()
