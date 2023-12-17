@@ -1,10 +1,16 @@
+import argparse
 import logging
-from sklearn.cluster import KMeans
-from sklearn.linear_model import LinearRegression
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.linear_model import LinearRegression
 
 logging.basicConfig(level=logging.INFO)
+
+parser = argparse.ArgumentParser(description='MediaPipe Voter Server')
+
+parser.add_argument('port', help='Port to run server on', type=int)
+parser.add_argument('-n', '--n_clusters', help='Number of clusters (if fixed)', type=int)
 
 
 def determine_n_clusters(dataset: np.ndarray) -> int:
@@ -24,7 +30,7 @@ def determine_n_clusters(dataset: np.ndarray) -> int:
     clusters_prediction_index = np.array(range(k_max)).reshape((-1, 1))
     clusters_prediction_inertia = np.array(clusters_prediction_inertia)
 
-    for _ in range(k_max - 2):
+    for _ in range(1, k_max - 1):
         regression = LinearRegression()
         regression.fit(clusters_prediction_index, clusters_prediction_inertia)
         regression_score.append(regression.score(clusters_prediction_index, clusters_prediction_inertia))
@@ -39,6 +45,8 @@ def determine_n_clusters(dataset: np.ndarray) -> int:
 
 
 if __name__ == '__main__':
+    args = parser.parse_args()
+
     x_data = [0.6363964998030558, 0.7631262949944646, 1.9214628548490054, 0.3764440261640849, 0.054172136928334336, 0.05731819870844479,
               1.456766340638167, 0.11544621959786716, 1.4467744613607951, 0.6418212614720025, 1.0493613570470124, 1.284517422843237,
               1.1194549420075972, 1.7922112363856382, 0.7709453581810977, 1.7362801066898073, 0.6195788441230601, 4.749026820521011,
@@ -60,7 +68,11 @@ if __name__ == '__main__':
 
     X = np.array(list(zip(x_data, y_data)))
 
-    N = determine_n_clusters(X)
+    if args.n_clusters is None:
+        N = determine_n_clusters(X)
+    else:
+        N = args.n_clusters
+
     logging.info(f'Found {N} clusters')
 
     kmeans = KMeans(n_clusters=N, n_init='auto')
@@ -74,5 +86,11 @@ if __name__ == '__main__':
 
     centers = kmeans.cluster_centers_
     plt.scatter(centers[:, 0], centers[:, 1], c='black', s=200)
+
+    for i, point in enumerate(centers):
+        ratio = np.sum(y_kmeans == i) / len(y_kmeans)
+        plt.annotate(f'   {round(ratio * 100)}%', point)
+
+    plt.axis('off')
 
     plt.show()
