@@ -2,10 +2,17 @@ import argparse
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import colormaps
+from matplotlib.animation import FuncAnimation
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 
+import random
+from sklearn.datasets import make_blobs
+
 logging.basicConfig(level=logging.INFO)
+
+viridis = colormaps['viridis']
 
 parser = argparse.ArgumentParser(description='MediaPipe Voter Server')
 
@@ -13,6 +20,9 @@ parser.add_argument('port', help='Port to run server on', type=int)
 parser.add_argument('-n', '--n_clusters', help='Number of clusters (if fixed)', type=int)
 
 ANNOTATIONS = []
+CLIENT_POSITIONS = {}
+
+fig, ax = plt.subplots()
 
 
 def determine_n_clusters(dataset: np.ndarray) -> int:
@@ -84,6 +94,23 @@ def annotate(point_set: np.ndarray, point_impact: list[int]):
         ANNOTATIONS.append(annotation)
 
 
+def simulation() -> np.ndarray:
+    dataset, _ = make_blobs(n_samples=random.randint(100, 1000), centers=random.randint(2, 9), cluster_std=random.random(), random_state=0)
+    return dataset
+
+
+def update(frame):
+    new_data = simulation()
+
+    point_distribution, cluster_centers = cluster_dataset(new_data)
+    distribution_plot.set_offsets(new_data)
+
+    distribution_plot.set_facecolors(viridis(point_distribution * 256 // len(set(point_distribution))))
+    centers_plot.set_offsets(cluster_centers)
+
+    annotate(cluster_centers, process_impact(point_distribution, cluster_centers))
+
+
 if __name__ == '__main__':
     args = parser.parse_args()
 
@@ -106,15 +133,20 @@ if __name__ == '__main__':
               2.3581154628790326, 5.706829101427535, 0.8624581491204436, 3.4399423373416034, 1.6477085527039308, 5.6696868773099265,
               5.348772310248291, 5.709094514941997]
 
-    X = np.array(list(zip(x_data, y_data)))
+    # X = np.array(list(zip(x_data, y_data)))
+    # X = simulation()
+    X, _ = make_blobs(n_samples=100, centers=9, cluster_std=0.3, random_state=0)
 
     distribution, centers = cluster_dataset(X)
 
-    plt.figure(num='Clustered votes')
-    plt.scatter(X[:, 0], X[:, 1], c=distribution, s=50, cmap='viridis')
-    plt.scatter(centers[:, 0], centers[:, 1], c='black', s=200)
+    distribution_plot = plt.scatter(X[:, 0], X[:, 1], s=50)
+    distribution_plot.set_facecolors(viridis(distribution * 256 // len(set(distribution))))
+    centers_plot = plt.scatter(centers[:, 0], centers[:, 1], c='black', s=200)
 
     annotate(centers, process_impact(distribution, centers))
 
+    animation = FuncAnimation(fig, update, interval=5000, cache_frame_data=False)
+
+    fig.canvas.manager.set_window_title('Real-time clustered votes')
     plt.axis('off')
     plt.show()
