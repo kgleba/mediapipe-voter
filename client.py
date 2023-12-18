@@ -1,6 +1,15 @@
+import argparse
 import cv2
 import mediapipe as mp
 import numpy as np
+
+parser = argparse.ArgumentParser(description='MediaPipe Voter Server')
+
+parser.add_argument('host', help='Host to connect to', type=str)
+parser.add_argument('port', help='Port to connect to', type=int)
+parser.add_argument('--live', action='store_true', help='Stream real-time hands detection')
+
+args = parser.parse_args()
 
 with mp.solutions.hands.Hands() as handsDetector:
     cap = cv2.VideoCapture(0)
@@ -21,4 +30,6 @@ with mp.solutions.hands.Hands() as handsDetector:
             print(results.multi_hand_landmarks[0])
 
         res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
-        cv2.imshow('Hands', res_image)
+
+        if args.live:
+            cv2.imshow('Hands', res_image)
